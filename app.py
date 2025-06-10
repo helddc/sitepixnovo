@@ -1,3 +1,5 @@
+# app.py
+
 import os
 import uuid
 from flask import Flask, render_template, request, redirect, url_for, flash
@@ -10,8 +12,8 @@ app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'padrao')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///database.db')
 db.init_app(app)
 
-@app.before_first_request
-def create_tables():
+# Use app.before_request instead, or initialize with app context
+with app.app_context():
     db.create_all()
 
 @app.route('/', methods=['GET', 'POST'])
@@ -73,3 +75,6 @@ def index():
             flash(f'Erro: {e}', 'error')
             return redirect(url_for('index'))
     return render_template('index.html')
+
+if __name__ == '__main__':
+    app.run(debug=True)
