@@ -1,11 +1,10 @@
 import base64
 import requests
-from config import ANUBIS_PUBLIC_KEY, ANUBIS_PRIVATE_KEY
+from config import ANUBIS_PUBLIC_KEY, ANUBIS_PRIVATE_KEY, ANUBIS_WITHDRAW_KEY
 
 def create_pix_charge(value: float, txid: str):
     url = "https://api.anubispay.com.br/v1/transactions"
 
-    # Gera autenticação Basic com chave pública e privada
     credentials = f"{ANUBIS_PUBLIC_KEY}:{ANUBIS_PRIVATE_KEY}"
     base64_credentials = base64.b64encode(credentials.encode()).decode()
 
@@ -15,10 +14,11 @@ def create_pix_charge(value: float, txid: str):
     }
 
     payload = {
-        "amount": int(value * 100),         # valor em centavos
+        "amount": int(value * 100),
         "paymentMethod": "pix",
         "reference": txid,
-        "expiresIn": 28800                  # validade: 8 horas (em segundos)
+        "expiresIn": 28800,
+        "description": "Cobrança via SitePixPix"
     }
 
     try:
@@ -26,7 +26,6 @@ def create_pix_charge(value: float, txid: str):
         response.raise_for_status()
         data = response.json()
 
-        # Ajuste conforme a estrutura da resposta real da API
         pix_code = data.get("pixCode") or data.get("payload")
         qr_code_base64 = data.get("qrCodeBase64") or data.get("qr_code_base64")
 
@@ -37,31 +36,35 @@ def create_pix_charge(value: float, txid: str):
             print(f"Resposta da API: {e.response.text}")
         return None, None
 
-def send_pix_payout(value: float, pix_key: str):
-    url = "https://api.anubispay.com.br/v1/payouts"
+def send_pix_payout(amount: float, pix_key: str, pix_key_type: str):
+    url = "https://api.anubispay.com.br/v1/transfers"
 
     credentials = f"{ANUBIS_PUBLIC_KEY}:{ANUBIS_PRIVATE_KEY}"
     base64_credentials = base64.b64encode(credentials.encode()).decode()
 
     headers = {
-        "Authorization": f"Basic {base64_credentials}",
-        "Content-Type": "application/json"
+        "accept": "application/json",
+        "x-withdraw-key": ANUBIS_WITHDRAW_KEY,
+        "authorization": f"Basic {base64_credentials}",
+        "content-type": "application/json"
     }
 
+    # Monta o payload incluindo a chave Pix e tipo
     payload = {
-        "amount": int(value * 100),  # valor em centavos
+        "method": "fiat",
+        "amount": int(amount * 100),  # em centavos
         "pixKey": pix_key,
-        "pixKeyType": "random"  # ajuste conforme tipo da chave Pix (cpf, email, random etc)
+        "pixKeyType": pix_key_type  # cpf, email, phone, randomkey (depende da API)
     }
 
     try:
         response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status()
         data = response.json()
-        return data.get("success", False), data
+        print(f"Saque realizado com sucesso: {data}")
+        return True, "Saque realizado com sucesso"
     except requests.exceptions.RequestException as e:
-        print(f"Erro ao realizar saque Anubis: {e}")
+        print(f"Erro ao fazer saque Anubis: {e}")
         if e.response:
             print(f"Resposta da API: {e.response.text}")
-        error_response = e.response.json() if e.response else {"error": str(e)}
-        return False, error_response
+        return False, str(e)
