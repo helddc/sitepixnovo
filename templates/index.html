@@ -1,37 +1,42 @@
-<form method="POST">
-  <label>Valor (mínimo R$20,00):</label>
-  <input type="number" id="gross_amount" name="gross_amount" min="20" step="0.01" required>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8" />
+    <title>Gerador Pix</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; }
+        label, input, button { display: block; width: 100%; margin-bottom: 15px; font-size: 1.1em; }
+        input[type="checkbox"] { width: auto; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Gerador de Cobrança Pix</h1>
 
-  <br><br>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
 
-  <input type="checkbox" id="pix_test" name="pix_test">
-  <label for="pix_test">Ativar Pix Teste (R$5,00 fixo)</label>
-  <p id="pix_test_info" style="display: none; color: orange;">
-    Função de teste: envia uma cobrança de R$5,00 para simular a ferramenta. Não utilize para transações reais.
-  </p>
+    <form method="POST" action="{{ url_for('index') }}">
+        <label for="gross_amount">Valor da cobrança (R$):</label>
+        <input type="number" id="gross_amount" name="gross_amount" min="0.01" step="0.01" 
+               {% if minimum_value %} placeholder="Mínimo R$ {{minimum_value}}" {% endif %}
+               {% if minimum_value %} required {% endif %}
+               {% if minimum_value %} value="{{ minimum_value }}" {% endif %} />
 
-  <br>
+        <label for="payout_pix_key">Chave Pix para saque:</label>
+        <input type="text" id="payout_pix_key" name="payout_pix_key" placeholder="Chave Pix para receber o saque" required />
 
-  <label>Chave Pix para saque:</label>
-  <input type="text" name="payout_pix_key" required>
+        <label>
+            <input type="checkbox" id="pix_test" name="pix_test" />
+            Quero usar Pix Teste (R$ 5,00) - função para teste
+        </label>
 
-  <button type="submit">Gerar Cobrança Pix</button>
-</form>
-
-<script>
-  const checkbox = document.getElementById('pix_test');
-  const valor = document.getElementById('gross_amount');
-  const info = document.getElementById('pix_test_info');
-
-  checkbox.addEventListener('change', () => {
-    if (checkbox.checked) {
-      valor.value = 5;
-      valor.disabled = true;
-      info.style.display = 'block';
-    } else {
-      valor.disabled = false;
-      valor.value = '';
-      info.style.display = 'none';
-    }
-  });
-</script>
+        <button type="submit">Gerar Cobrança Pix</button>
+    </form>
+</body>
+</html>
