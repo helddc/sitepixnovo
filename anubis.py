@@ -17,7 +17,10 @@ def create_pix_charge(value: float, txid: str):
             return data.get("pix"), data.get("qr_code_base64")
         return None, None
     except requests.exceptions.RequestException as e:
+        # LOG DE ERRO MELHORADO AQUI
         print(f"Erro ao criar cobrança Anubis: {e}")
+        if e.response:
+            print(f"Resposta da API: {e.response.text}") # Mostra o erro exato
         return None, None
 
 def send_pix_payout(value: float, pix_key: str):
@@ -33,6 +36,9 @@ def send_pix_payout(value: float, pix_key: str):
         data = response.json()
         return data.get("success", False), data
     except requests.exceptions.RequestException as e:
+        # LOG DE ERRO MELHORADO AQUI
         print(f"Erro ao realizar saque Anubis: {e}")
+        if e.response:
+            print(f"Resposta da API: {e.response.text}") # Mostra o erro exato
         error_response = e.response.json() if e.response else {"error": str(e)}
         return False, error_response
