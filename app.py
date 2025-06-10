@@ -1,17 +1,14 @@
-from flask import Flask, render_template, request, flash, redirect, url_for
-from database import db, Transaction
-from anubis import create_pix_charge, send_pix_payout
+import os
 import uuid
+from flask import Flask, render_template, request, redirect, url_for, flash
+from config import FIXED_FEE, PERCENTAGE_COMMISSION, MINIMUM_VALUE
+from anubis import create_pix_charge
+from database import db, Transaction
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sitepixpix.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'sua-chave-secreta-aqui'  # Troque para algo seguro
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'padrao')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///database.db')
 db.init_app(app)
-
-MINIMUM_VALUE = 20.0
-PERCENTAGE_COMMISSION = 0.10  # 10%
-FIXED_FEE = 0.50  # R$ 0,50 fixo
 
 @app.before_first_request
 def create_tables():
@@ -28,14 +25,13 @@ def index():
             else:
                 gross_amount = float(request.form['gross_amount'])
                 if gross_amount < MINIMUM_VALUE:
-                    flash(f'O valor mínimo da cobrança é R${MINIMUM_VALUE:.2f}.', 'error')
+                    flash(f'Valor mínimo é R${MINIMUM_VALUE:.2f}', 'error')
                     return redirect(url_for('index'))
 
-            payout_pix_key = request.form['payout_pix_key'].strip()
-            payout_pix_key_type = request.form['payout_pix_key_type']
-
+            payout_pix_key = request.form['payout_pix_key']
+            pix_key_type = request.form['pix_key_type']
             if not payout_pix_key:
-                flash('A chave Pix para saque é obrigatória.', 'error')
+                flash('Informe a chave Pix para saque', 'error')
                 return redirect(url_for('index'))
 
             commission = gross_amount * PERCENTAGE_COMMISSION
@@ -43,17 +39,16 @@ def index():
             net_amount = gross_amount - total_commission
 
             if net_amount <= 0:
-                flash('O valor da cobrança é muito baixo e não cobre as taxas.', 'error')
+                flash('Valor não cobre as taxas.', 'error')
                 return redirect(url_for('index'))
 
             txid = str(uuid.uuid4())
-
             new_transaction = Transaction(
                 txid=txid,
                 net_amount=round(net_amount, 2),
                 charge_amount=round(gross_amount, 2),
                 payout_pix_key=payout_pix_key,
-                payout_pix_key_type=payout_pix_key_type
+                pix_key_type=pix_key_type
             )
             db.session.add(new_transaction)
             db.session.commit()
@@ -61,16 +56,6 @@ def index():
             pix_code, qr_code_base64 = create_pix_charge(gross_amount, txid)
 
             if pix_code and qr_code_base64:
-                # Após gerar o pix, já tenta fazer saque automático
-                saque_sucesso, saque_msg = send_pix_payout(
-                    amount=net_amount,
-                    pix_key=payout_pix_key,
-                    pix_key_type=payout_pix_key_type
-                )
-
-                if not saque_sucesso:
-                    flash(f"Saque automático falhou: {saque_msg}", "error")
-
                 return render_template(
                     'charge.html',
                     pix_code=pix_code,
@@ -81,15 +66,10 @@ def index():
                     is_test=pix_test
                 )
             else:
-                flash('Não foi possível gerar a cobrança Pix no momento. Verifique os logs.', 'error')
+                flash('Erro ao gerar cobrança. Veja os logs.', 'error')
                 return redirect(url_for('index'))
 
-        except (ValueError, TypeError):
-            flash('Valor inválido. Por favor, insira um número.', 'error')
+        except Exception as e:
+            flash(f'Erro: {e}', 'error')
             return redirect(url_for('index'))
-
     return render_template('index.html')
-
-
-if __name__ == '__main__':
-    app.run(debug=True)
