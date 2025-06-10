@@ -1,59 +1,108 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8" />
-    <title>Cobrança Pix</title>
-    <style>
-        .copy-btn {
-            padding: 8px 12px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            margin-left: 8px;
-            border-radius: 4px;
-        }
-        .copy-btn:hover {
-            background-color: #0056b3;
-        }
-        .pix-container {
-            display: flex;
-            align-items: center;
-            margin-top: 20px;
-        }
-        input.pix-code {
-            width: 300px;
-            font-size: 14px;
-            padding: 8px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Cobrança Pix</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px;
+      background-color: #f3f3f3;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      max-width: 400px;
+      margin: 0 auto;
+    }
+    img {
+      width: 200px;
+      margin: 20px 0;
+    }
+    .copy-btn {
+      background-color: #008f56;
+      color: white;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .copy-btn:hover {
+      background-color: #007347;
+    }
+    .info {
+      margin: 15px 0;
+      color: #333;
+    }
+    #timer {
+      font-weight: bold;
+      margin-top: 15px;
+      color: #aa0000;
+    }
+    .warning {
+      color: #ff9900;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
-    <h1>Gerar Pix - Valor: R$ {{ charge_amount }}</h1>
-    <p>Valor líquido após taxas: R$ {{ net_amount }}</p>
-    <p>Comissão total: R$ {{ total_commission }}</p>
+  <div class="card">
+    {% if is_test %}
+      <p class="warning">⚠️ Esta é uma cobrança de <strong>teste</strong> no valor fixo de R$5,00. Não utilize para transações reais.</p>
+    {% endif %}
+
+    <h2>Escaneie o QR Code</h2>
+    <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code Pix">
+
+    <div class="info">
+      <p><strong>Valor:</strong> R$ {{ '%.2f' | format(charge_amount) }}</p>
+      <p><strong>Valor líquido (após taxas):</strong> R$ {{ '%.2f' | format(net_amount) }}</p>
+    </div>
 
     <div>
-        <h2>QR Code Pix:</h2>
-        <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code Pix" />
+      <p><strong>Código Pix (copia e cola):</strong></p>
+      <textarea id="pixCode" rows="3" style="width: 100%;">{{ pix_code }}</textarea>
+      <button class="copy-btn" onclick="copyPix()">Copiar Código Pix</button>
     </div>
 
-    <div class="pix-container">
-        <label for="pix-code">Código Pix (copiar/colar):</label>
-        <input class="pix-code" type="text" id="pix-code" value="{{ pix_code }}" readonly />
-        <button class="copy-btn" onclick="copyPixCode()">Copiar</button>
-    </div>
+    <div id="timer"></div>
+  </div>
 
-    <script>
-        function copyPixCode() {
-            const pixInput = document.getElementById('pix-code');
-            pixInput.select();
-            pixInput.setSelectionRange(0, 99999); // Para dispositivos móveis
-            document.execCommand('copy');
-            alert('Código Pix copiado!');
+  <script>
+    function copyPix() {
+      const text = document.getElementById("pixCode");
+      text.select();
+      document.execCommand("copy");
+      alert("Código Pix copiado!");
+    }
+
+    // Timer de validade - 8 horas (28800 segundos)
+    let seconds = 28800;
+
+    function formatTime(sec) {
+      const h = Math.floor(sec / 3600).toString().padStart(2, '0');
+      const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+      const s = (sec % 60).toString().padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
+
+    function startTimer() {
+      const timer = document.getElementById("timer");
+      setInterval(() => {
+        if (seconds > 0) {
+          seconds--;
+          timer.innerText = `⚠️ Código válido por: ${formatTime(seconds)}`;
+        } else {
+          timer.innerText = "⛔ O código expirou. Gere uma nova cobrança.";
         }
-    </script>
+      }, 1000);
+    }
 
-    <a href="{{ url_for('index') }}">Voltar</a>
+    startTimer();
+  </script>
 </body>
 </html>
