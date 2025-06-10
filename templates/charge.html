@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagar Cobrança Pix</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .container { max-width: 500px; }
+        .card { border: none; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .qr-code img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 8px; }
+        .pix-code { word-wrap: break-word; background-color: #e9ecef; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container mt-5 text-center">
+        <div class="card p-4">
+            <h1 class="mb-3">Pague com Pix</h1>
+            <p>Escaneie o QR Code com o app do seu banco.</p>
+            <div class="qr-code my-3">
+                <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code Pix">
+            </div>
+            <h2>Valor a pagar: R$ {{ "%.2f"|format(charge_amount) }}</h2>
+            <hr>
+            <p class="mt-3">Ou use o Pix Copia e Cola:</p>
+            <div class="pix-code p-3 mb-3">
+                <code>{{ pix_code }}</code>
+            </div>
+            <p class="text-muted small">Após o pagamento, o valor líquido será enviado para a chave cadastrada.</p>
+            <a href="/" class="btn btn-secondary mt-3">Gerar Nova Cobrança</a>
+        </div>
+    </div>
+</body>
+</html>
