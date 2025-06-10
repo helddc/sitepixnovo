@@ -1,44 +1,38 @@
-# anubis.py
+import base64
 import requests
-from config import ANUBIS_API_URL, ANUBIS_PUBLIC_KEY, ANUBIS_PRIVATE_KEY
+from config import ANUBIS_PUBLIC_KEY, ANUBIS_PRIVATE_KEY
 
 def create_pix_charge(value: float, txid: str):
-    url = f"{ANUBIS_API_URL}/pix/charge"
-    payload = {"value": value, "txid": txid}
+    url = "https://api.anubispay.com.br/v1/transactions"
+
+    # Gera autenticação Basic com chave pública e privada
+    credentials = f"{ANUBIS_PUBLIC_KEY}:{ANUBIS_PRIVATE_KEY}"
+    base64_credentials = base64.b64encode(credentials.encode()).decode()
+
     headers = {
-        "Authorization": f"Bearer {ANUBIS_PUBLIC_KEY}",
+        "Authorization": f"Basic {base64_credentials}",
         "Content-Type": "application/json"
     }
+
+    payload = {
+        "amount": int(value * 100),         # valor em centavos
+        "paymentMethod": "pix",
+        "reference": txid,
+        "expiresIn": 28800                  # validade: 8 horas (em segundos)
+    }
+
     try:
         response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status()
         data = response.json()
-        if data.get("success"):
-            return data.get("pix"), data.get("qr_code_base64")
-        return None, None
+
+        # Ajuste conforme a estrutura da resposta real
+        pix_code = data.get("pixCode") or data.get("payload")
+        qr_code_base64 = data.get("qrCodeBase64") or data.get("qr_code_base64")
+
+        return pix_code, qr_code_base64
     except requests.exceptions.RequestException as e:
-        # LOG DE ERRO MELHORADO AQUI
         print(f"Erro ao criar cobrança Anubis: {e}")
         if e.response:
-            print(f"Resposta da API: {e.response.text}") # Mostra o erro exato
+            print(f"Resposta da API: {e.response.text}")
         return None, None
-
-def send_pix_payout(value: float, pix_key: str):
-    url = f"{ANUBIS_API_URL}/pix/send"
-    payload = {"value": value, "pix_key": pix_key, "pix_key_type": "random"}
-    headers = {
-        "Authorization": f"Bearer {ANUBIS_PRIVATE_KEY}",
-        "Content-Type": "application/json"
-    }
-    try:
-        response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        return data.get("success", False), data
-    except requests.exceptions.RequestException as e:
-        # LOG DE ERRO MELHORADO AQUI
-        print(f"Erro ao realizar saque Anubis: {e}")
-        if e.response:
-            print(f"Resposta da API: {e.response.text}") # Mostra o erro exato
-        error_response = e.response.json() if e.response else {"error": str(e)}
-        return False, error_response
