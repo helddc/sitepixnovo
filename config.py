@@ -11,5 +11,5 @@ FIXED_FEE = 2.50  # Taxa fixa de R$ 2,50
 PERCENTAGE_COMMISSION = 0.15  # Comissão de 15%
 MINIMUM_VALUE = 20.00  # Valor líquido mínimo que o usuário pode solicitar
 
-# --- URL da API Anubis ---
-ANUBIS_API_URL = "https://api.anubis.gg/api"
+# --- URL da API Anubis corrigida ---
+ANUBIS_API_URL = "https://app.anubispay.com.br/api"
