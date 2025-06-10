@@ -1,80 +1,152 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8" />
-    <title>Cobrança Pix Gerada</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; }
-        .qr-code { text-align: center; margin-bottom: 20px; }
-        input, button { font-size: 1.2em; width: 100%; padding: 10px; margin-bottom: 10px; }
-        .info { margin-bottom: 15px; }
-        .timer { font-weight: bold; color: green; }
-        .test-label { color: red; font-weight: bold; margin-bottom: 20px; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cobrança Pix Gerada</title>
+  <style>
+    body {
+      background: #f9f9f9;
+      color: #222;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+        Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      display: flex;
+      min-height: 100vh;
+      justify-content: center;
+      align-items: center;
+      padding: 1rem;
+    }
+    .container {
+      background: white;
+      padding: 2rem 2.5rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+    }
+    h2 {
+      color: #0a74da;
+      margin-bottom: 1rem;
+    }
+    img.qr-code {
+      max-width: 220px;
+      margin: 1rem auto 1.5rem auto;
+      display: block;
+    }
+    .pix-code-box {
+      background: #f0f0f0;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      user-select: all;
+      margin-bottom: 1rem;
+      word-break: break-word;
+    }
+    button.copy-btn {
+      background-color: #0a74da;
+      color: white;
+      border: none;
+      padding: 0.5rem 1.2rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      transition: background-color 0.3s ease;
+    }
+    button.copy-btn:hover {
+      background-color: #084ab4;
+    }
+    .info-text {
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+      color: #555;
+    }
+    .countdown {
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: #e74c3c;
+      margin-bottom: 1rem;
+    }
+    a.btn-back {
+      display: inline-block;
+      margin-top: 1rem;
+      text-decoration: none;
+      background: #0a74da;
+      color: white;
+      padding: 0.5rem 1.2rem;
+      border-radius: 6px;
+      font-weight: 700;
+      transition: background-color 0.3s ease;
+    }
+    a.btn-back:hover {
+      background: #084ab4;
+    }
+    .commission-info {
+      font-size: 0.9rem;
+      color: #333;
+      margin-top: 1rem;
+    }
+  </style>
 </head>
 <body>
-    <h1>Cobrança Pix Gerada</h1>
+  <div class="container">
+    <h2>Cobrança Pix Gerada</h2>
+
+    <img class="qr-code" src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code Pix" />
+
+    <div class="pix-code-box" id="pixCode">{{ pix_code }}</div>
+
+    <button class="copy-btn" onclick="copyPixCode()">Copiar Código Pix</button>
+
+    <div class="info-text">
+      Valor: R$ {{ '%.2f'|format(charge_amount) }}<br />
+      Taxas: R$ {{ '%.2f'|format(total_commission) }}<br />
+      Valor líquido (recebido): R$ {{ '%.2f'|format(net_amount) }}
+    </div>
 
     {% if is_test %}
-      <div class="test-label">Você está usando <strong>PIX TESTE</strong>. Valor fixo de R$ 5,00.</div>
+      <div class="info-text" style="color:#d35400; font-weight:bold;">
+        ATENÇÃO: Este é um PIX TESTE, válido por 8 horas. Valor fixo de R$5,00.
+      </div>
     {% endif %}
 
-    <div class="qr-code">
-        <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code Pix" />
-    </div>
+    <div class="countdown" id="countdown">Validade: 08:00:00</div>
 
-    <div class="info">
-        <label for="pix_code">Código Pix (copiar e colar):</label>
-        <input type="text" id="pix_code" value="{{ pix_code }}" readonly />
-        <button onclick="copyPixCode()">Copiar código Pix</button>
-    </div>
+    <a href="{{ url_for('index') }}" class="btn-back">Voltar</a>
+  </div>
 
-    <div class="info">
-        <p>Valor bruto: R$ {{ '%.2f' % charge_amount }}</p>
-        <p>Taxas totais: R$ {{ '%.2f' % total_commission }}</p>
-        <p>Valor líquido: R$ {{ '%.2f' % net_amount }}</p>
-    </div>
+  <script>
+    function copyPixCode() {
+      const pixCodeText = document.getElementById("pixCode").textContent;
+      navigator.clipboard.writeText(pixCodeText).then(() => {
+        alert("Código Pix copiado!");
+      });
+    }
 
-    <div class="info">
-        <p>Este QR Code é válido por <span id="timer">08:00:00</span> horas.</p>
-    </div>
+    // Contagem regressiva de 8 horas (28800 segundos)
+    let timeLeft = 28800;
+    const countdownElem = document.getElementById("countdown");
 
-    <script>
-        function copyPixCode() {
-            const pixCodeInput = document.getElementById('pix_code');
-            pixCodeInput.select();
-            pixCodeInput.setSelectionRange(0, 99999);
-            document.execCommand('copy');
-            alert('Código Pix copiado!');
-        }
+    function formatTime(seconds) {
+      const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
+      const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+      const s = String(seconds % 60).padStart(2, "0");
+      return `${h}:${m}:${s}`;
+    }
 
-        // Contador regressivo para 8 horas (28800 segundos)
-        let timeLeft = 28800; // 8 horas em segundos
+    function countdown() {
+      if (timeLeft <= 0) {
+        countdownElem.textContent = "Cobrança expirada!";
+        return;
+      }
+      countdownElem.textContent = "Validade: " + formatTime(timeLeft);
+      timeLeft--;
+      setTimeout(countdown, 1000);
+    }
 
-        function startTimer() {
-            const timerElement = document.getElementById('timer');
-
-            const interval = setInterval(() => {
-                if (timeLeft <= 0) {
-                    clearInterval(interval);
-                    timerElement.textContent = 'Expirado';
-                    return;
-                }
-
-                let hours = Math.floor(timeLeft / 3600);
-                let minutes = Math.floor((timeLeft % 3600) / 60);
-                let seconds = timeLeft % 60;
-
-                timerElement.textContent = 
-                    String(hours).padStart(2, '0') + ':' +
-                    String(minutes).padStart(2, '0') + ':' +
-                    String(seconds).padStart(2, '0');
-
-                timeLeft--;
-            }, 1000);
-        }
-
-        startTimer();
-    </script>
+    countdown();
+  </script>
 </body>
 </html>
