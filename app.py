@@ -1,6 +1,7 @@
-# app.py
+# app.py (VERSÃO CORRIGIDA)
 from flask import Flask, render_template, request, redirect, url_for, flash
 import uuid
+import os # <<< ESTA LINHA FOI ADICIONADA PARA CORRIGIR O ERRO
 
 from config import FIXED_FEE, PERCENTAGE_COMMISSION, MINIMUM_VALUE
 from database import db, Transaction
@@ -11,7 +12,8 @@ app = Flask(__name__)
 # Se não estiver usando um DB do Render, ele cria um arquivo local.
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///transactions.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.urandom(24)
+# A linha abaixo usa o 'os' para gerar uma chave segura
+app.config['SECRET_KEY'] = os.urandom(24) 
 db.init_app(app)
 
 @app.route('/', methods=['GET', 'POST'])
