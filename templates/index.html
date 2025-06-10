@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerador de Cobrança Pix</title>
+    <title>Gateway de Pagamento Anônimo</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #f8f9fa; }
         .container { max-width: 600px; }
         .card { border: none; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .calculator-result { background-color: #e9ecef; border-radius: 8px; }
     </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <div class="card p-4">
-            <h1 class="text-center mb-4">Gerar Cobrança Pix</h1>
-            <p class="text-center text-muted">Crie uma cobrança e receba o valor líquido automaticamente na sua chave Pix cadastrada.</p>
+    <div class="container my-5">
+        <div class="card p-4 p-md-5">
+            <h1 class="text-center mb-3">Gateway Anônimo</h1>
+            <p class="text-center text-muted">Receba pagamentos via Pix sem expor seus dados. As cobranças são geradas em nome de um CNPJ parceiro.</p>
             
             {% with messages = get_flashed_messages(with_categories=true) %}
               {% if messages %}
@@ -29,23 +30,61 @@
 
             <form action="/" method="POST">
                 <div class="mb-3">
-                    <label for="net_amount" class="form-label"><b>Valor que você quer receber (Líquido)</b></label>
-                    <input type="number" step="0.01" class="form-control form-control-lg" id="net_amount" name="net_amount" placeholder="Ex: 100.00" min="{{ minimum_value }}" required>
-                    <div class="form-text">Valor mínimo: R$ {{ "%.2f"|format(minimum_value) }}.</div>
+                    <label for="gross_amount" class="form-label"><b>Valor da Cobrança (Bruto)</b></label>
+                    <input type="number" step="0.01" class="form-control form-control-lg" id="gross_amount" name="gross_amount" placeholder="Ex: 120.00" min="{{ minimum_value }}" required oninput="calculateFees()">
+                    <div class="form-text">Valor que seu cliente irá pagar. Mínimo: R$ {{ "%.2f"|format(minimum_value) }}.</div>
                 </div>
+                
+                <div id="calculator" class="p-3 mb-4 calculator-result d-none">
+                    <div class="d-flex justify-content-between"><span>Taxa (15%):</span> <span id="commission_val">-</span></div>
+                    <div class="d-flex justify-content-between"><span>Taxa Fixa:</span> <span id="fixed_fee_val">-</span></div>
+                    <hr class="my-1">
+                    <div class="d-flex justify-content-between fw-bold"><span>Você Receberá (Líquido):</span> <span id="net_amount_val" class="text-success">-</span></div>
+                </div>
+                
                 <div class="mb-4">
-                    <label for="payout_pix_key" class="form-label"><b>Sua Chave Pix para Saque Automático</b></label>
+                    <label for="payout_pix_key" class="form-label"><b>Sua Chave Pix para Receber o Valor</b></label>
                     <input type="text" class="form-control form-control-lg" id="payout_pix_key" name="payout_pix_key" placeholder="CPF, e-mail, celular ou chave aleatória" required>
                 </div>
                 <div class="d-grid">
-                    <button type="submit" class="btn btn-primary btn-lg">Gerar QR Code Pix</button>
+                    <button type="submit" class="btn btn-primary btn-lg">Gerar Cobrança Pix</button>
                 </div>
             </form>
-            <hr class="my-4">
-            <div class="text-center small text-muted">
-                Taxas: R$ 2,50 (fixa) + 15% sobre o valor líquido.
-            </div>
         </div>
     </div>
+
+    <script>
+        // SCRIPT DA CALCULADORA
+        async function calculateFees() {
+            const grossAmountInput = document.getElementById('gross_amount');
+            const grossAmount = parseFloat(grossAmountInput.value) || 0;
+            
+            const calculatorDiv = document.getElementById('calculator');
+            
+            if (grossAmount > 0) {
+                calculatorDiv.classList.remove('d-none'); // Mostra a calculadora
+
+                try {
+                    const response = await fetch('/calculate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ gross_amount: grossAmount })
+                    });
+                    const data = await response.json();
+                    
+                    document.getElementById('commission_val').textContent = data.commission;
+                    document.getElementById('fixed_fee_val').textContent = data.fixed_fee;
+                    document.getElementById('net_amount_val').textContent = data.net_amount;
+
+                } catch (error) {
+                    console.error('Error calculating fees:', error);
+                }
+            } else {
+                calculatorDiv.classList.add('d-none'); // Esconde a calculadora
+            }
+        }
+    </script>
 </body>
 </html>
