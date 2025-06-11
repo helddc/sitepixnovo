@@ -20,7 +20,6 @@ def index():
             payout_pix_key = request.form['payout_pix_key']
             payout_pix_key_type = request.form.get('payout_pix_key_type', 'random')
 
-            # LÓGICA PARA O "PIX TESTE"
             if 'pix_test' in request.form:
                 gross_amount = 5.00
             else:
@@ -49,7 +48,7 @@ def index():
                 net_amount=round(net_amount, 2),
                 charge_amount=round(gross_amount, 2),
                 payout_pix_key=payout_pix_key,
-                payout_pix_key_type=payout_pix_key_type # Salva o tipo da chave
+                payout_pix_key_type=payout_pix_key_type
             )
             db.session.add(new_transaction)
             db.session.commit()
@@ -57,12 +56,7 @@ def index():
             pix_code, qr_code_base64 = create_pix_charge(gross_amount, txid)
 
             if pix_code and qr_code_base64:
-                return render_template(
-                    'charge.html',
-                    pix_code=pix_code,
-                    qr_code_base64=qr_code_base64,
-                    charge_amount=gross_amount
-                )
+                return render_template('charge.html', pix_code=pix_code, qr_code_base64=qr_code_base64, charge_amount=gross_amount)
             else:
                 flash('Não foi possível gerar a cobrança Pix no momento. Verifique os logs.', 'error')
                 return redirect(url_for('index'))
@@ -73,37 +67,43 @@ def index():
 
     return render_template('index.html', minimum_value=MINIMUM_VALUE)
 
+@app.route('/calculate', methods=['POST'])
+def calculate():
+    data = request.get_json()
+    try:
+        gross_amount = float(data.get('gross_amount', 0))
+        commission = gross_amount * PERCENTAGE_COMMISSION
+        total_commission = commission + FIXED_FEE
+        net_amount = gross_amount - total_commission
+        
+        return jsonify({
+            'commission': f'R$ {commission:.2f}',
+            'fixed_fee': f'R$ {FIXED_FEE:.2f}',
+            'net_amount': f'R$ {net_amount:.2f}' if net_amount > 0 else 'R$ 0.00'
+        })
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Valor inválido'}), 400
+
 @app.route('/webhook', methods=['POST'])
 def anubis_webhook():
     data = request.json
     print(f"Webhook recebido: {data}")
-
     if data.get("event") == "pix.charge.paid":
         charge_data = data.get("data", {})
         txid = charge_data.get("txid")
         transaction = Transaction.query.filter_by(txid=txid).first()
-
         if transaction and transaction.status == 'pending':
             transaction.status = 'paid'
             db.session.commit()
-            
             print(f"Iniciando saque de R${transaction.net_amount} para a chave {transaction.payout_pix_key}")
-            # AGORA USA O TIPO DE CHAVE SALVO NO BANCO
-            success, payout_data = send_pix_payout(
-                transaction.net_amount, 
-                transaction.payout_pix_key, 
-                transaction.payout_pix_key_type
-            )
-            
+            success, payout_data = send_pix_payout(transaction.net_amount, transaction.payout_pix_key, transaction.payout_pix_key_type)
             if success:
                 transaction.status = 'withdrawn'
                 print(f"Saque para txid {txid} realizado com sucesso.")
             else:
                 transaction.status = 'payout_failed'
                 print(f"Falha no saque para txid {txid}. Resposta da API: {payout_data}")
-            
             db.session.commit()
-
     return "OK", 200
 
 with app.app_context():
