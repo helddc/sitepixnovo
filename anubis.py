@@ -1,35 +1,35 @@
-import base64
+# anubis.py
 import requests
-from config import ANUBIS_PUBLIC_KEY, ANUBIS_PRIVATE_KEY
+from config import ANUBIS_API_URL, ANUBIS_PUBLIC_KEY, ANUBIS_PRIVATE_KEY
 
 def create_pix_charge(value: float, txid: str):
-    url = "https://api.anubispay.com.br/v1/transactions"
-
-    credentials = f"{ANUBIS_PUBLIC_KEY}:{ANUBIS_PRIVATE_KEY}"
-    base64_credentials = base64.b64encode(credentials.encode()).decode()
-
-    headers = {
-        "Authorization": f"Basic {base64_credentials}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "amount": int(value * 100),
-        "paymentMethod": "pix",
-        "reference": txid,
-        "expiresIn": 28800
-    }
-
+    url = f"{ANUBIS_API_URL}/pix/charge"
+    payload = {"value": value, "txid": txid}
+    headers = {"Authorization": f"Bearer {ANUBIS_PUBLIC_KEY}", "Content-Type": "application/json"}
     try:
         response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status()
         data = response.json()
-
-        pix_code = data.get("pixCode") or data.get("payload")
-        qr_code_base64 = data.get("qrCodeBase64") or data.get("qr_code_base64")
-        return pix_code, qr_code_base64
+        if data.get("success"):
+            return data.get("pix"), data.get("qr_code_base64")
+        return None, None
     except requests.exceptions.RequestException as e:
         print(f"Erro ao criar cobrança Anubis: {e}")
-        if e.response:
-            print(f"Resposta da API: {e.response.text}")
+        if e.response: print(f"Resposta da API: {e.response.text}")
         return None, None
+
+# FUNÇÃO DE SAQUE ATUALIZADA AQUI
+def send_pix_payout(value: float, pix_key: str, pix_key_type: str):
+    url = f"{ANUBIS_API_URL}/pix/send"
+    payload = {"value": value, "pix_key": pix_key, "pix_key_type": pix_key_type}
+    headers = {"Authorization": f"Bearer {ANUBIS_PRIVATE_KEY}", "Content-Type": "application/json"}
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("success", False), data
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao realizar saque Anubis: {e}")
+        if e.response: print(f"Resposta da API: {e.response.text}")
+        error_response = e.response.json() if e.response else {"error": str(e)}
+        return False, error_response
