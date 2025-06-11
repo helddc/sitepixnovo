@@ -1,56 +1,55 @@
 # app.py
-
-import os
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import uuid
-from flask import Flask, render_template, request, redirect, url_for, flash
+import os
+
 from config import FIXED_FEE, PERCENTAGE_COMMISSION, MINIMUM_VALUE
-from anubis import create_pix_charge
 from database import db, Transaction
+from anubis import create_pix_charge, send_pix_payout
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'padrao')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///database.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///transactions.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = os.urandom(24)
 db.init_app(app)
-
-# Use app.before_request instead, or initialize with app context
-with app.app_context():
-    db.create_all()
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
         try:
-            pix_test = 'pix_test' in request.form
+            payout_pix_key = request.form['payout_pix_key']
+            payout_pix_key_type = request.form.get('payout_pix_key_type', 'random')
 
-            if pix_test:
+            # LÓGICA PARA O "PIX TESTE"
+            if 'pix_test' in request.form:
                 gross_amount = 5.00
             else:
                 gross_amount = float(request.form['gross_amount'])
-                if gross_amount < MINIMUM_VALUE:
-                    flash(f'Valor mínimo é R${MINIMUM_VALUE:.2f}', 'error')
-                    return redirect(url_for('index'))
-
-            payout_pix_key = request.form['payout_pix_key']
-            pix_key_type = request.form['pix_key_type']
+            
             if not payout_pix_key:
-                flash('Informe a chave Pix para saque', 'error')
+                flash('A chave Pix para saque é obrigatória.', 'error')
                 return redirect(url_for('index'))
 
+            if gross_amount < MINIMUM_VALUE and 'pix_test' not in request.form:
+                flash(f'O valor mínimo da cobrança é R${MINIMUM_VALUE:.2f}.', 'error')
+                return redirect(url_for('index'))
+            
             commission = gross_amount * PERCENTAGE_COMMISSION
             total_commission = commission + FIXED_FEE
             net_amount = gross_amount - total_commission
-
+            
             if net_amount <= 0:
-                flash('Valor não cobre as taxas.', 'error')
+                flash('O valor da cobrança é muito baixo e não cobre as taxas.', 'error')
                 return redirect(url_for('index'))
 
             txid = str(uuid.uuid4())
+
             new_transaction = Transaction(
                 txid=txid,
                 net_amount=round(net_amount, 2),
                 charge_amount=round(gross_amount, 2),
                 payout_pix_key=payout_pix_key,
-                pix_key_type=pix_key_type
+                payout_pix_key_type=payout_pix_key_type # Salva o tipo da chave
             )
             db.session.add(new_transaction)
             db.session.commit()
@@ -62,19 +61,50 @@ def index():
                     'charge.html',
                     pix_code=pix_code,
                     qr_code_base64=qr_code_base64,
-                    charge_amount=gross_amount,
-                    net_amount=net_amount,
-                    total_commission=total_commission,
-                    is_test=pix_test
+                    charge_amount=gross_amount
                 )
             else:
-                flash('Erro ao gerar cobrança. Veja os logs.', 'error')
+                flash('Não foi possível gerar a cobrança Pix no momento. Verifique os logs.', 'error')
                 return redirect(url_for('index'))
 
-        except Exception as e:
-            flash(f'Erro: {e}', 'error')
+        except (ValueError, TypeError):
+            flash('Valor inválido. Por favor, insira um número.', 'error')
             return redirect(url_for('index'))
-    return render_template('index.html')
 
-if __name__ == '__main__':
-    app.run(debug=True)
+    return render_template('index.html', minimum_value=MINIMUM_VALUE)
+
+@app.route('/webhook', methods=['POST'])
+def anubis_webhook():
+    data = request.json
+    print(f"Webhook recebido: {data}")
+
+    if data.get("event") == "pix.charge.paid":
+        charge_data = data.get("data", {})
+        txid = charge_data.get("txid")
+        transaction = Transaction.query.filter_by(txid=txid).first()
+
+        if transaction and transaction.status == 'pending':
+            transaction.status = 'paid'
+            db.session.commit()
+            
+            print(f"Iniciando saque de R${transaction.net_amount} para a chave {transaction.payout_pix_key}")
+            # AGORA USA O TIPO DE CHAVE SALVO NO BANCO
+            success, payout_data = send_pix_payout(
+                transaction.net_amount, 
+                transaction.payout_pix_key, 
+                transaction.payout_pix_key_type
+            )
+            
+            if success:
+                transaction.status = 'withdrawn'
+                print(f"Saque para txid {txid} realizado com sucesso.")
+            else:
+                transaction.status = 'payout_failed'
+                print(f"Falha no saque para txid {txid}. Resposta da API: {payout_data}")
+            
+            db.session.commit()
+
+    return "OK", 200
+
+with app.app_context():
+    db.create_all()
